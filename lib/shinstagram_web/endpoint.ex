@@ -21,7 +21,7 @@ defmodule ShinstagramWeb.Endpoint do
     at: "/",
     from: :shinstagram,
     gzip: false,
-    only: ShinstagramWeb.static_paths()
+    only: ShinstagramWeb.static_paths() ++ ~w(uploads)
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

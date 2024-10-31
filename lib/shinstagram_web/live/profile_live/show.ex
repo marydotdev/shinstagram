@@ -1,4 +1,5 @@
 defmodule ShinstagramWeb.ProfileLive.Show do
+  require Logger
   use ShinstagramWeb, :live_view
 
   alias Shinstagram.Profiles
@@ -50,7 +51,16 @@ defmodule ShinstagramWeb.ProfileLive.Show do
   end
 
   def handle_event("sleep", %{"pid" => pid_string}, socket) do
-    {:ok, profile} = Shinstagram.Agents.Profile.shutdown_profile(pid_string, 30_000)
-    {:noreply, socket |> assign(profile: profile)}
+    clean_pid = pid_string
+      |> String.replace(~r/#PID<(.+)>/, "\\1")
+
+    case Shinstagram.Agents.Profile.shutdown_profile(socket.assigns.profile, clean_pid) do
+      {:ok, _updated_profile} ->
+        {:noreply, socket}
+
+      {:error, reason} ->
+        Logger.error("Failed to shutdown profile: #{inspect(reason)}")
+        {:noreply, socket}
+    end
   end
 end

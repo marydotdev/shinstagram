@@ -69,7 +69,12 @@ defmodule ShinstagramWeb.PostLive.Index do
 
   def handle_event("sleep", _, socket) do
     Profiles.list_awake_profiles()
-    |> Enum.map(fn profile -> Shinstagram.Agents.Profile.shutdown_profile(profile.pid) end)
+    |> Enum.each(fn profile ->
+      case profile.pid do
+        nil -> :ok
+        pid -> Shinstagram.Agents.Profile.shutdown_profile(profile, pid)
+      end
+    end)
 
     {:noreply, socket}
   end

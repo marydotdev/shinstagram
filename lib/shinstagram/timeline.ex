@@ -100,19 +100,22 @@ defmodule Shinstagram.Timeline do
   @doc """
   Given a profile, generate a post.
   """
+
   def gen_post(profile) do
     with {:ok, image_prompt} <- gen_image_prompt(profile),
          {:ok, caption} <- gen_caption(image_prompt, profile),
          {:ok, location} <- gen_location(image_prompt),
-         {:ok, image_url} <- gen_image(image_prompt) do
+         {:ok, image_path} <- Shinstagram.Utils.gen_image(image_prompt) do
       create_post(profile, %{
-        photo: image_url,
+        photo: image_path,  # This will be something like "/uploads/123.jpg"
         photo_prompt: image_prompt,
         caption: caption,
         location: location
       })
     else
-      {:error, error} -> {:error, error}
+      {:error, error} ->
+        Logger.error("Failed to generate post: #{inspect(error)}")
+        {:error, error}
     end
   end
 

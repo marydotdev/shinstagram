@@ -7,17 +7,24 @@ defmodule Shinstagram.Utils do
     {:ok, content}
   end
 
-  def save_r2(uuid, image_url) do
+  def save_local(uuid, image_url) do
+    # Create uploads directory if it doesn't exist
+    uploads_dir = Path.join(["priv", "static", "uploads"])
+    File.mkdir_p!(uploads_dir)
+
+    # Download image and save it locally
     image_binary = Req.get!(image_url).body
-
     file_name = "prediction-#{uuid}.png"
-    bucket = System.get_env("BUCKET_NAME")
+    file_path = Path.join(uploads_dir, file_name)
 
-    %{status_code: 200} =
-      ExAws.S3.put_object(bucket, file_name, image_binary)
-      |> ExAws.request!()
-
-    {:ok, "#{System.get_env("CLOUDFLARE_PUBLIC_URL")}/#{file_name}"}
+    case File.write(file_path, image_binary) do
+      :ok ->
+        public_path = "/uploads/#{file_name}"
+        {:ok, public_path}
+      {:error, reason} ->
+        Logger.error("Failed to save image: #{inspect(reason)}")
+        {:error, "Failed to save image"}
+    end
   end
 
   def gen_image({:ok, image_prompt}), do: gen_image(image_prompt)
@@ -30,13 +37,23 @@ defmodule Shinstagram.Utils do
     model = Replicate.Models.get!(@image_model)
     version = Replicate.Models.get_latest_version!(model)
 
-    {:ok, prediction} = Replicate.Predictions.create(version, %{prompt: image_prompt})
-    {:ok, prediction} = Replicate.Predictions.wait(prediction)
+    case Replicate.Predictions.create(version, %{prompt: image_prompt}) do
+      {:ok, prediction} ->
+        case Replicate.Predictions.wait(prediction) do
+          {:ok, prediction} ->
+            Logger.info("Image generated: #{prediction.output}")
+            result = List.first(prediction.output)
+            save_local(prediction.id, result)
 
-    Logger.info("Image generated: #{prediction.output}")
+          {:error, error} ->
+            Logger.error("Failed to wait for prediction: #{inspect(error)}")
+            {:error, "Failed to generate image"}
+        end
 
-    result = List.first(prediction.output)
-    save_r2(prediction.id, result)
+      {:error, error} ->
+        Logger.error("Failed to create prediction: #{inspect(error)}")
+        {:error, "Failed to start image generation"}
+    end
   end
 
   def chat_completion(text) do
